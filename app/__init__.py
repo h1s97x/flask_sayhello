@@ -1,6 +1,3 @@
-# -*- coding: utf-8 -*-
-"""
-"""
 import os
 
 from flask import Flask, render_template
@@ -9,9 +6,8 @@ from flask_wtf.csrf import CSRFError
 import click
 
 from app.views import main_bp
-from app.models.message import Message
 from app.config import config  # 导入存储配置的字典
-from app.extensions import bootstrap, db, login_manager, moment
+from app.extensions import bootstrap, db, moment, csrf
 from app.utils import fake_message
 
 def create_app(config_name=None):
@@ -41,8 +37,8 @@ def create_app(config_name=None):
 def register_extensions(app):
     bootstrap.init_app(app)
     db.init_app(app)
-    # login_manager.init_app(app)
     moment.init_app(app)
+    csrf.init_app(app)
 
 def register_blueprints(app):
     app.register_blueprint(main_bp)
