@@ -1,46 +1,94 @@
 import unittest
-from flask import Flask
-from app.extensions import bootstrap, db, login_manager, moment, csrf, whooshee
 
-class TestExtensions(unittest.TestCase):
+from flask import abort
+
+from app import app, db
+from app.models import Message
+# from app.commands import forge, initdb
+
+
+class AppTestCase(unittest.TestCase):
+
     def setUp(self):
-        """Setup a Flask app for testing."""
-        self.app = Flask(__name__)
-        self.app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///:memory:'
-        self.app.config['TESTING'] = True
-        self.app_context = self.app.app_context()
-        self.app_context.push()
+        app.config.update(
+            TESTING=True,
+            WTF_CSRF_ENABLED=False,
+            SQLALCHEMY_DATABASE_URI='sqlite:///:memory:'
+        )
+        db.create_all()
+        self.client = app.test_client()
+        self.runner = app.test_cli_runner()
 
     def tearDown(self):
-        """Cleanup after tests."""
-        self.app_context.pop()
+        db.session.remove()
+        db.drop_all()
 
-    def test_extensions_initialization(self):
-        """Test that extensions are correctly initialized."""
-        self.assertIsNotNone(bootstrap)
-        self.assertIsNotNone(db)
-        self.assertIsNotNone(login_manager)
-        self.assertIsNotNone(moment)
-        self.assertIsNotNone(csrf)
-        self.assertIsNotNone(whooshee)
+    def test_app_exist(self):
+        self.assertFalse(app is None)
 
-    def test_extensions_binding(self):
-        """Test that extensions can be bound to a Flask app."""
-        with self.app.app_context():
-            bootstrap.init_app(self.app)
-            db.init_app(self.app)
-            login_manager.init_app(self.app)
-            moment.init_app(self.app)
-            csrf.init_app(self.app)
-            whooshee.init_app(self.app)
-            
-            # Verifying if extensions are bound to the app
-            self.assertIn('bootstrap', self.app.extensions)
-            self.assertIn('sqlalchemy', self.app.extensions)
-            self.assertIn('login_manager', self.app.extensions)
-            self.assertIn('moment', self.app.extensions)
-            self.assertIn('csrf', self.app.extensions)
-            self.assertIn('whooshee', self.app.extensions)
+    def test_app_is_testing(self):
+        self.assertTrue(app.config['TESTING'])
+
+    def test_404_page(self):
+        response = self.client.get('/nothing')
+        data = response.get_data(as_text=True)
+        self.assertIn('404 Error', data)
+        self.assertIn('Go Back', data)
+        self.assertEqual(response.status_code, 404)
+
+    def test_500_page(self):
+        # create route to abort the request with the 500 Error
+        @app.route('/500')
+        def internal_server_error_for_test():
+            abort(500)
+
+        response = self.client.get('/500')
+        data = response.get_data(as_text=True)
+        self.assertEqual(response.status_code, 500)
+        self.assertIn('500 Error', data)
+        self.assertIn('Go Back', data)
+
+    def test_index_page(self):
+        response = self.client.get('/')
+        data = response.get_data(as_text=True)
+        self.assertIn('Say Hello', data)
+
+    def test_create_message(self):
+        response = self.client.post('/', data=dict(
+            name='Peter',
+            body='Hello, world.'
+        ), follow_redirects=True)
+        data = response.get_data(as_text=True)
+        self.assertIn('Your message have been sent to the world!', data)
+        self.assertIn('Hello, world.', data)
+
+    def test_form_validation(self):
+        response = self.client.post('/', data=dict(
+            name=' ',
+            body='Hello, world.'
+        ), follow_redirects=True)
+        data = response.get_data(as_text=True)
+        self.assertIn('This field is required.', data)
+
+    # def test_forge_command(self):
+    #     result = self.runner.invoke(forge)
+    #     self.assertIn('Created 20 fake messages.', result.output)
+    #     self.assertEqual(Message.query.count(), 20)
+
+    # def test_forge_command_with_count(self):
+    #     result = self.runner.invoke(forge, ['--count', '50'])
+    #     self.assertIn('Created 50 fake messages.', result.output)
+    #     self.assertEqual(Message.query.count(), 50)
+
+    # def test_initdb_command(self):
+    #     result = self.runner.invoke(initdb)
+    #     self.assertIn('Initialized database.', result.output)
+
+    # def test_initdb_command_with_drop(self):
+    #     result = self.runner.invoke(initdb, ['--drop'], input='y\n')
+    #     self.assertIn('This operation will delete the database, do you want to continue?', result.output)
+    #     self.assertIn('Drop tables.', result.output)
+
 
 if __name__ == '__main__':
     unittest.main()
