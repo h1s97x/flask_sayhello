@@ -41,3 +41,17 @@ header a {
 footer {
     margin: 20px;
 }
+
+#totop {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    width: 64px;
+    height: 64px;
+    transition: all 0.1s ease-in-out;
+    background: url(img/totop.png);
+    background-repeat: no-repeat;
+    background-position: center;
+    background-size: contain;
+    z-index: 3;
+}
